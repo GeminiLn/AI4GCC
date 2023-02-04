@@ -754,22 +754,22 @@ class Rice:
             for region_id in self.group_dict[group_id]:
             
                 outgoing_accepted_mitigation_rates = [
-                    self.global_state["promised_mitigation_rate"]["value"][
-                        self.timestep, region_id, j
+                    self.global_state["group_promised_mitigation_rate"]["value"][
+                        self.timestep, group_id, j
                     ]
-                    * self.global_state["proposal_decisions"]["value"][
-                        self.timestep, j, region_id
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, j, group_id
                     ]
-                    for j in range(self.num_regions)
+                    for j in range(self.num_groups)
                 ]
                 incoming_accepted_mitigation_rates = [
-                    self.global_state["requested_mitigation_rate"]["value"][
-                        self.timestep, j, region_id
+                    self.global_state["group_requested_mitigation_rate"]["value"][
+                        self.timestep, j, group_id
                     ]
-                    * self.global_state["proposal_decisions"]["value"][
-                        self.timestep, region_id, j
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, group_id, j
                     ]
-                    for j in range(self.num_regions)
+                    for j in range(self.num_groups)
                 ]
 
                 ratio = self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id]
