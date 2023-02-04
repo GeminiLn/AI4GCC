@@ -724,12 +724,13 @@ class Rice:
             + self.export_action_nvec
             + self.import_actions_nvec
             + self.tariff_actions_nvec
+            + self.group_ratio_actions_nvec
             + self.group_proposal_actions_nvec
         )
 
         num_group_evaluation_actions = len(self.group_evaluation_actions_nvec)
 
-        group_proposal_decisions = np.array(
+        proposal_decisions = np.array(
             [
                 actions[region_id][
                     action_offset_index : action_offset_index + num_evaluation_actions
@@ -739,21 +740,51 @@ class Rice:
             ]
         )
 
-        group_proposal_decisions = ********************
+        group_proposal_decisions = [
+            1 if sum(group_m1_all_regions[region:region+3]) > 1 else 0 for region in range(0, len(group_m1_all_regions), 3)
+        ]
 
         for group_id in range(self.num_groups):
-            proposal_decisions[group_id, group_id] = 0
+            group_proposal_decisions[group_id, group_id] = 0
         
-        self.set_global_state(
+        self.set_global_state("group_proposal_decisions", group_proposal_decisions, self.timestep)
 
         for group_id in range(self.num_groups):
-
+        
             for region_id in self.group_dict[group_id]:
+            
+                outgoing_accepted_mitigation_rates = [
+                    self.global_state["promised_mitigation_rate"]["value"][
+                        self.timestep, region_id, j
+                    ]
+                    * self.global_state["proposal_decisions"]["value"][
+                        self.timestep, j, region_id
+                    ]
+                    for j in range(self.num_regions)
+                ]
+                incoming_accepted_mitigation_rates = [
+                    self.global_state["requested_mitigation_rate"]["value"][
+                        self.timestep, j, region_id
+                    ]
+                    * self.global_state["proposal_decisions"]["value"][
+                        self.timestep, region_id, j
+                    ]
+                    for j in range(self.num_regions)
+                ]
+
+                ratio = self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id]
+
                 self.global_state["minimum_mitigation_rate_all_regions"]["value"][
-                    self.timestep, group_id
+                    self.timestep, region_id
                 ] = max(
                     outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
-                ) * group_m1_ratio[region_id]
+                ) * ratio
+        
+        obs = self.generate_observation()
+        rew = {region_id: 0.0 for region_id in range(self.num_regions)}
+        done = {"__all__": 0}
+        info = {}
+        return obs, rew, done, info
     '''
 
     def proposal_step(self, actions=None):
