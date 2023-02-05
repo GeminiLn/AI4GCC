@@ -556,80 +556,8 @@ class Rice:
             mask_dict[region_id] = mask
 
         return mask_dict
+
     '''
-    def group_proposal_step(self, actions=None):
-        
-        assert self.negotiation_on
-        asster self.group_on
-        assert self.stage == 1
-
-        assert isinstance(actions, dict)
-        assert len(actions) == self.num_regions
-
-        action_offset_index = len(
-            self.savings_action_nvec
-            + self.mitigation_rate_action_nvec
-            + self.export_action_nvec
-            + self.import_actions_nvec
-            + self.tariff_actions_nvec
-        )
-
-        num_group_proposal_actions = len(self.group_proposal_actions_nvec)
-
-        group_m1_all_regions = [
-            actions[region_id][
-                action_offset_index : action_offset_index + num_group_proposal_actions : 2
-            ]
-            / self.num_discrete_action_levels
-            for group_id in self.group_indicators.keys()
-            for region_id in self.group_indicators[group_id]
-        ]
-
-        group_m2_all_regions = [
-            actions[region_id][
-                action_offset_index + 1 : action_offset_index + num_group_proposal_actions + 1 : 2
-            ]
-            / self.num_discrete_action_levels
-            for group_id in self.group_indicators.keys()
-            for region_id in self.group_indicators[group_id]
-        ]
-    
-        self.set_global_state(
-            "group_promised_mitigation_rate", np.array(m1_all_regions), self.timestep
-        )
-        self.set_global_state(
-            "group_requested_mitigation_rate", np.array(m2_all_regions), self.timestep
-        )
-
-        obs = self.generate_observation()
-        rew = {region_id: 0.0 for region_id in range(self.num_regions)}
-        done = {"__all__": 0}
-        info = {}
-        return obs, rew, done, info
-    
-    def group_evaluation_step(self, actions=None):
-
-        assert self.negotiation_on
-        assert self.group_on
-        assert self.stage == 2
-
-        assert isinstance(actions, dict)
-        assert len(actions) == self.num_regions
-
-        action_offset_index = len(
-            self.savings_action_nvec
-            + self.mitigation_rate_action_nvec
-            + self.export_action_nvec
-            + self.import_actions_nvec
-            + self.tariff_actions_nvec
-            + self.group_proposal_actions_nvec
-        )
-
-        num_group_evaluation_actions = len(self.group_evaluation_actions_nvec)
-    '''
-    # --------------------------------------------------------------------------------------------
-    '''
-
     def group_proposal_step(self, actions=None):
         
         assert self.negotiation_on
