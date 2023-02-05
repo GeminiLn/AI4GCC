@@ -511,6 +511,9 @@ class Rice:
                         / self.global_state[feature]["norm"]
                     ),
                 )
+            
+            ## Group Feature Processing
+            # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
             features_dict[region_id] = all_features
 
