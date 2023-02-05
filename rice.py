@@ -658,12 +658,12 @@ class Rice:
             for region_id in self.group_dict[group_id]
         ]
 
-        group_ration_all_gruops = [
+        group_ration_all_groups = [
             [sum(group_ration_all_regions[region, region+3])] * 3 for region in range(0, len(group_ration_all_regions), 3)
         ]
 
         for region in group_ration_all_regions:
-            group_ration_all_regions[region] = group_ration_all_regions[region] / group_ration_all_gruops[region]
+            group_ration_all_regions[region] = group_ration_all_regions[region] / group_ration_all_groups[region]
 
         self.set_global_state(
             "group_disccused_ratio", np.array(group_ration_all_regions), self.timestep
