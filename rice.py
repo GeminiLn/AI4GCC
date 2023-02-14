@@ -397,6 +397,11 @@ class Rice:
 
             if self.stage == 2:
                 return self.evaluation_step(actions)
+        '''
+        if self.grouping_on:
+            if self.timestep % self.num_negotiation_stages == 0:
+                self.grouping_step()
+        '''
 
         return self.climate_and_economy_simulation_step(actions)
 
@@ -464,6 +469,28 @@ class Rice:
                 "requested_mitigation_rate",
                 "proposal_decisions",
             ]
+        
+        # New features
+        # group_disccused_ratio
+        # group_promised_mitigation_rate, group_requested_mitigation_rate
+        # group_proposal_decisions
+        '''
+        if self.grouping_on:
+            global_features += ["stage"]
+
+            public_features += []
+
+            private_features += [
+                "minimum_mitigation_rate_all_regions",
+                "group_disccused_ratio",
+            ]
+
+            grouping_features = [
+                "group_promised_mitigation_rate",
+                "group_requested_mitigation_rate",
+                "group_proposal_decisions",
+            ]
+        '''
 
         shared_features = np.array([])
         for feature in global_features + public_features:
@@ -512,10 +539,37 @@ class Rice:
                     ),
                 )
             
-            ## Group Feature Processing
-            # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        ## Group Feature Processing
+        '''
+        if self.grouping_on:
+            for group_id in range(self.num_groups):
+            
+                group_indicator = np.zeros(self.num_groups, dtype=self.float_dtype)
+                group_indicator[group_id] = 1
 
-            features_dict[region_id] = all_features
+                all_features = np.append(group_indicator)
+                
+                for feature in grouping_features:
+                    assert self.global_state[feature]["value"].shape[1] == self.num_groups
+                    assert self.global_state[feature]["value"].shape[2] == self.num_groups
+                    all_features = np.append(
+                        all_features,
+                        self.flatten_array(
+                            self.global_state[feature]["value"][self.timestep, group_id]
+                            / self.global_state[feature]["norm"]
+                        ),
+                    )
+                    all_features = np.append(
+                        all_features,
+                        self.flatten_array(
+                            self.global_state[feature]["value"][self.timestep, :, group_id]
+                            / self.global_state[feature]["norm"]
+                        ),
+                    )
+            '''
+
+
+        features_dict[region_id] = all_features
 
         # Fetch the action mask dictionary, keyed by region_id.
         action_mask_dict = self.generate_action_mask()
