@@ -65,6 +65,8 @@ class Rice:
         num_discrete_action_levels=10,  # the number of discrete levels for actions, > 1
         negotiation_on=False,  # If True then negotiation is on, else off
     ):
+        self.group_on = True  # TODO: pass variable
+
         """TODO : init docstring"""
         assert (
             num_discrete_action_levels > 1
@@ -397,11 +399,7 @@ class Rice:
 
             if self.stage == 2:
                 return self.evaluation_step(actions)
-        '''
-        if self.grouping_on:
-            if self.timestep % self.num_negotiation_stages == 0:
-                self.grouping_step()
-        '''
+        
 
         return self.climate_and_economy_simulation_step(actions)
 
@@ -474,8 +472,8 @@ class Rice:
         # group_disccused_ratio
         # group_promised_mitigation_rate, group_requested_mitigation_rate
         # group_proposal_decisions
-        '''
-        if self.grouping_on:
+        # TODO: Added
+        if self.group_on:
             global_features += ["stage"]
 
             public_features += []
@@ -490,7 +488,6 @@ class Rice:
                 "group_requested_mitigation_rate",
                 "group_proposal_decisions",
             ]
-        '''
 
         shared_features = np.array([])
         for feature in global_features + public_features:
@@ -538,10 +535,10 @@ class Rice:
                         / self.global_state[feature]["norm"]
                     ),
                 )
-            
+            # features_dict[region_id] = all_features
         ## Group Feature Processing
-        '''
-        if self.grouping_on:
+        # TODO: Added
+        if self.group_on:
             for group_id in range(self.num_groups):
             
                 group_indicator = np.zeros(self.num_groups, dtype=self.float_dtype)
@@ -566,11 +563,9 @@ class Rice:
                             / self.global_state[feature]["norm"]
                         ),
                     )
-            '''
 
-
-        features_dict[region_id] = all_features
-
+            features_dict[region_id] = all_features
+        
         # Fetch the action mask dictionary, keyed by region_id.
         action_mask_dict = self.generate_action_mask()
 
@@ -614,11 +609,11 @@ class Rice:
 
         return mask_dict
 
-    '''
+    ## TODO: Added 
     def group_proposal_step(self, actions=None):
         
         assert self.negotiation_on
-        asster self.group_on
+        assert self.group_on
         assert self.stage == 1
 
         assert isinstance(actions, dict)
@@ -770,7 +765,7 @@ class Rice:
         done = {"__all__": 0}
         info = {}
         return obs, rew, done, info
-    '''
+
 
     def proposal_step(self, actions=None):
         """
