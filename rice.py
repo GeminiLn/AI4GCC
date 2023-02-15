@@ -84,7 +84,8 @@ class Rice:
         self.balance_interest_rate = 0.1
 
         self.num_regions = num_regions
-        # self.num_groups = 9
+        self.num_groups = 9
+
         self.rice_constant = params["_RICE_CONSTANT"]
         self.dice_constant = params["_DICE_CONSTANT"]
         self.all_constants = self.concatenate_world_and_regional_params(
@@ -356,6 +357,20 @@ class Rice:
             value=np.zeros(self.num_regions),
             timestep=self.timestep,
         )
+
+        self.set_global_state(
+            key="group_disccused_ratio", 
+            value=np.zeros(self.num_regions),
+            timestep=self.timestep
+        )
+
+        for k in ["group_promised_mitigation_rate", "group_requested_mitigation_rate", "group_proposal_decisions"]:
+            self.set_global_state(
+                key=k, 
+                value=np.zeros(self.num_groups),
+                timestep=self.timestep
+            )
+
         for key in [
             "promised_mitigation_rate",
             "requested_mitigation_rate",
@@ -535,15 +550,15 @@ class Rice:
                         / self.global_state[feature]["norm"]
                     ),
                 )
-            # features_dict[region_id] = all_features
+            features_dict[region_id] = all_features
+        
         ## Group Feature Processing
-        # TODO: Added
+        # TODO: Add group features to all features
         if self.group_on:
             for group_id in range(self.num_groups):
             
                 group_indicator = np.zeros(self.num_groups, dtype=self.float_dtype)
                 group_indicator[group_id] = 1
-
                 all_features = np.append(group_indicator)
                 
                 for feature in grouping_features:
