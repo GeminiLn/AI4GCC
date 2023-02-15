@@ -395,10 +395,10 @@ class Rice:
                 "stage", self.stage, self.timestep, dtype=self.int_dtype
             )
             if self.stage == 1:
-                return self.proposal_step(actions)
+                return self.group_proposal_step(actions)
 
             if self.stage == 2:
-                return self.evaluation_step(actions)
+                return self.group_evaluation_step(actions)
         
 
         return self.climate_and_economy_simulation_step(actions)
