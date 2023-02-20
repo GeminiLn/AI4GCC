@@ -550,16 +550,16 @@ class Rice:
                         / self.global_state[feature]["norm"]
                     ),
                 )
-            features_dict[region_id] = all_features
+            #features_dict[region_id] = all_features
         
-        ## Group Feature Processing
-        # TODO: Add group features to all features
-        if self.group_on:
-            for group_id in range(self.num_groups):
-            
+            ## Group Feature Processing
+            # TODO: Add group features to all features
+            if self.group_on:
+                group_id = self.group_indicator[region_id]
+                
                 group_indicator = np.zeros(self.num_groups, dtype=self.float_dtype)
                 group_indicator[group_id] = 1
-                all_features = np.append(group_indicator)
+                all_features = np.append(all_features, group_indicator)
                 
                 for feature in grouping_features:
                     assert self.global_state[feature]["value"].shape[1] == self.num_groups
