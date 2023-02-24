@@ -63,11 +63,9 @@ class Rice:
     def __init__(
         self,
         num_discrete_action_levels=10,  # the number of discrete levels for actions, > 1
-        negotiation_on=False,  # If True then negotiation is on, else off
-        group_on = False  # TODO: pass variable
+        negotiation_on=False  # If True then negotiation is on, else off
     ):
-        
-        self.group_on = group_on  # TODO: pass variable
+        self.group_on = False  # TODO: pass variable
         """TODO : init docstring"""
         assert (
             num_discrete_action_levels > 1
@@ -412,11 +410,18 @@ class Rice:
             self.set_global_state(
                 "stage", self.stage, self.timestep, dtype=self.int_dtype
             )
-            if self.stage == 1:
-                return self.group_proposal_step(actions)
+            if self.group_on:
+                if self.stage == 1:
+                    return self.group_proposal_step(actions)
 
-            if self.stage == 2:
-                return self.group_evaluation_step(actions)
+                if self.stage == 2:
+                    return self.group_evaluation_step(actions)
+            else:
+                if self.stage == 1:
+                    return self.proposal_step(actions)
+
+                if self.stage == 2:
+                    return self.evaluation_step(actions)
         
 
         return self.climate_and_economy_simulation_step(actions)
@@ -712,7 +717,6 @@ class Rice:
         return obs, rew, done, info
     
     def group_evaluation_step(self, actions=None):
-
         assert self.negotiation_on
         assert self.group_on
         assert self.stage == 2
@@ -814,8 +818,6 @@ class Rice:
         assert isinstance(actions, dict)
         assert len(actions) == self.num_regions
 
-        #print("Proposal Step begains:")
-
         action_offset_index = len(
             self.savings_action_nvec
             + self.mitigation_rate_action_nvec
@@ -823,35 +825,7 @@ class Rice:
             + self.import_actions_nvec
             + self.tariff_actions_nvec
         )
-        #print("action_offset_index: ", action_offset_index)
         num_proposal_actions = len(self.proposal_actions_nvec)
-        #print("num_proposal_actions: ", num_proposal_actions)
-        '''
-        with open('/home/u1318605/climate-cooperation-competition/output_test.txt', 'a+') as f:
-            print("savings_action_nvec: ", self.savings_action_nvec, file=f)
-            print("mitigation_rate_action_nvec: ", self.mitigation_rate_action_nvec, file=f)
-            print("export_action_nvec: ", self.export_action_nvec, file=f)
-            print("import_action_nvec: ", self.import_actions_nvec, file=f)
-            print("tariff_action_nvec: ", self.tariff_actions_nvec, file=f)
-            print("actions[0] (action of acgent 0)", actions[0], file=f)
-        '''
-        with open('/home/u1318605/climate-cooperation-competition/output_test.txt', 'a+') as f:
-            print('Agent 0 action:', file=f)
-            print("Saving action", actions[0][0], file=f)
-            print("Mitigation action", actions[0][1], file=f)
-            print("Export action", actions[0][2], file=f)
-            print("Import action", actions[0][3:30], file=f)
-            print("Tariff action", actions[0][30:57], file=f)
-            print("Proposal action", actions[0][57:111], file=f)
-            print('Proposal decision', actions[0][111:], file=f)
-
-        # Yu: How to set the initial group
-        # Yu: Design a group proposal stage? Initially set each group with one agents
-        # Yu: Set a new stage. Stage one: group stage, set a group flag if agent would like to form a group ([1] private or [27] public)
-        # Group proposal vector, append into the action vector
-        # Yu: Stage two: In-group proposal stage, each group member has a group proposal vector
-        # Yu: Stage three: In-group evaluation stage, each group form a group proposal vector (How to?)
-        # Yu: Stage four: Out-of-group evaluation stage
 
         m1_all_regions = [
             actions[region_id][
@@ -860,7 +834,6 @@ class Rice:
             / self.num_discrete_action_levels
             for region_id in range(self.num_regions)
         ]
-        print("m1_all_regions: ", m1_all_regions)
 
         m2_all_regions = [
             actions[region_id][
@@ -869,7 +842,6 @@ class Rice:
             / self.num_discrete_action_levels
             for region_id in range(self.num_regions)
         ]
-        print("m2_all_regions: ", len(m2_all_regions))
 
         self.set_global_state(
             "promised_mitigation_rate", np.array(m1_all_regions), self.timestep
@@ -903,9 +875,6 @@ class Rice:
             + self.proposal_actions_nvec
         )
         num_evaluation_actions = len(self.evaluation_actions_nvec)
-        #print("num_evaluation_actions: ", num_evaluation_actions)
-
-        print("actions", len(actions[0]))
 
         proposal_decisions = np.array(
             [
@@ -915,7 +884,6 @@ class Rice:
                 for region_id in range(self.num_regions)
             ]
         )
-        #print("proposal_decisions: ", proposal_decisions)
         # Force set the evaluation for own proposal to reject
         for region_id in range(self.num_regions):
             proposal_decisions[region_id, region_id] = 0
@@ -947,9 +915,6 @@ class Rice:
             ] = max(
                 outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
             )
-            #print('outgoing', outgoing_accepted_mitigation_rates)
-            #print('incoming', incoming_accepted_mitigation_rates)
-            #print('max', max(outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates))
 
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
