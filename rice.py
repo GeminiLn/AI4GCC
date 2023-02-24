@@ -64,9 +64,10 @@ class Rice:
         self,
         num_discrete_action_levels=10,  # the number of discrete levels for actions, > 1
         negotiation_on=False,  # If True then negotiation is on, else off
+        group_on = False  # TODO: pass variable
     ):
-        self.group_on = True  # TODO: pass variable
-
+        
+        self.group_on = group_on  # TODO: pass variable
         """TODO : init docstring"""
         assert (
             num_discrete_action_levels > 1
@@ -145,7 +146,7 @@ class Rice:
         )
 
         # Negotiation-related initializations
-        if self.negotiation_on:
+        if self.negotiation_on and not self.group_on:
             self.stage = 0
             self.num_negotiation_stages = 2  # proposal and evaluation steps
             self.episode_length += (
@@ -167,28 +168,30 @@ class Rice:
             )
 
         # Add group proposal and evaluation actions
-        '''
         if self.negotiation_on and self.group_on:
+            self.stage = 0
+            self.num_negotiation_stages = 2  # proposal and evaluation steps
+            self.episode_length += (
+                self.dice_constant["xN"] * self.num_negotiation_stages
+            )
         
             self.group_dict = {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8], 3: [9, 10, 11], 
-                                    4: [12, 13, 14], 5: [15, 16, 17], 6: [18, 19, 20], 7: [21, 22, 23]
+                                    4: [12, 13, 14], 5: [15, 16, 17], 6: [18, 19, 20], 7: [21, 22, 23],
                                     8: [24, 25, 26]}
             self.group_indicator = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8]
             
-            sel.group_ratio_actions_nvec = [self.num_discrete_action_levels]
+            self.group_ratio_actions_nvec = [self.num_discrete_action_levels]
 
             self.group_proposal_actions_nvec = (
-                [self.num_discrete_action_levels] * 2 * 9 (9 is the group number)
+                [self.num_discrete_action_levels] * 2 * 9 # (9 is the group number)
             )
 
-            self.group_evaluation_actions_nvec = [2] * 9 (9 is the group number)
+            self.group_evaluation_actions_nvec = [2] * 9 # (9 is the group number)
 
             self.actions_nvec += (
-                sel.group_ration + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec
+                self.group_ratio_actions_nvec + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec
             )
 
-            self.group_
-        '''
 
         # Set the env action space
         self.action_space = {
@@ -367,7 +370,7 @@ class Rice:
         for k in ["group_promised_mitigation_rate", "group_requested_mitigation_rate", "group_proposal_decisions"]:
             self.set_global_state(
                 key=k, 
-                value=np.zeros(self.num_groups),
+                value=np.zeros((self.num_groups, self.num_groups)),
                 timestep=self.timestep
             )
 
@@ -647,21 +650,25 @@ class Rice:
 
         group_ration_all_regions = [
             actions[region_id][
-                action_offset_index - self.group_ratio_actions_nvec : action_offset_index
+                (action_offset_index - len(self.group_ratio_actions_nvec)) : action_offset_index
             ]
             for group_id in self.group_dict.keys()
             for region_id in self.group_dict[group_id]
         ]
 
-        group_ration_all_groups = [
-            [sum(group_ration_all_regions[region, region+3])] * 3 for region in range(0, len(group_ration_all_regions), 3)
-        ]
+        group_ration_all_groups = []
+        for region in range(0, len(group_ration_all_regions), 3):
+            for i in range(3):
+                group_ration_all_groups.append(sum(group_ration_all_regions[region:region+3]))
 
-        for region in group_ration_all_regions:
-            group_ration_all_regions[region] = group_ration_all_regions[region] / group_ration_all_groups[region]
+        for region in range(len(group_ration_all_regions)):
+            if group_ration_all_groups[region][0] == 0:
+                group_ration_all_regions[region] = 1/3
+            else:
+                group_ration_all_regions[region] = group_ration_all_regions[region] / group_ration_all_groups[region]
 
         self.set_global_state(
-            "group_disccused_ratio", np.array(group_ration_all_regions), self.timestep
+            "group_disccused_ratio", np.array(group_ration_all_regions).squeeze(), self.timestep
         )
 
         group_m1_all_regions = [
@@ -674,7 +681,7 @@ class Rice:
         ]
 
         group_m1_all_groups = [
-            sum(group_m1_all_regions[region, region+3])/3 for region in range(0, len(group_m1_all_regions), 3)
+            sum(group_m1_all_regions[region:region+3])/3 for region in range(0, len(group_m1_all_regions), 3)
         ]
 
         group_m2_all_regions = [
@@ -687,15 +694,15 @@ class Rice:
         ]
 
         group_m2_all_groups = [
-            sum(group_m2_all_regions[region, region+3])/3 for region in range(0, len(group_m2_all_regions), 3)
+            sum(group_m2_all_regions[region:region+3])/3 for region in range(0, len(group_m2_all_regions), 3)
         ]
     
         self.set_global_state(
-            "group_promised_mitigation_rate", np.array(m1_all_regions), self.timestep
+            "group_promised_mitigation_rate", np.array(group_m1_all_groups), self.timestep
         )
 
         self.set_global_state(
-            "group_requested_mitigation_rate", np.array(m2_all_regions), self.timestep
+            "group_requested_mitigation_rate", np.array(group_m2_all_groups), self.timestep
         )
 
         obs = self.generate_observation()
@@ -725,19 +732,33 @@ class Rice:
 
         num_group_evaluation_actions = len(self.group_evaluation_actions_nvec)
 
-        proposal_decisions = np.array(
+        ## TODO: Error Action bound 0-2, but currently 0-10
+        group_m1_all_regions = np.array(
             [
                 actions[region_id][
-                    action_offset_index : action_offset_index + num_evaluation_actions
+                    action_offset_index : action_offset_index + num_group_evaluation_actions
                 ]
                 for group_id in self.group_dict.keys()
                 for region_id in self.group_dict[group_id]
             ]
         )
 
-        group_proposal_decisions = [
-            1 if sum(group_m1_all_regions[region:region+3]) > 1 else 0 for region in range(0, len(group_m1_all_regions), 3)
-        ]
+        group_proposal_decisions = []
+        for region in range(0, len(group_m1_all_regions), 3):
+            lst = []
+            vertical_sum = sum(group_m1_all_regions[region:region+3])
+            for value in vertical_sum:
+                if value > 1:
+                    lst.append(1)
+                else: 
+                    lst.append(0)
+            group_proposal_decisions.append(lst)
+            
+        group_proposal_decisions = np.array(group_proposal_decisions)
+
+        # group_proposal_decisions = [
+        #     1 if (sum(group_m1_all_regions[region:region+3]) > 1) else 0 for region in range(0, len(group_m1_all_regions), 3)
+        # ]
 
         for group_id in range(self.num_groups):
             group_proposal_decisions[group_id, group_id] = 0
