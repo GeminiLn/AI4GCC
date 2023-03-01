@@ -63,15 +63,16 @@ class Rice:
     def __init__(
         self,
         num_discrete_action_levels=10,  # the number of discrete levels for actions, > 1
-        negotiation_on=False  # If True then negotiation is on, else off
+        negotiation_on=False,  # If True then negotiation is on, else off
+        group_on=False  # If True then group negotiation is on, else off
     ):
-        self.group_on = False  # TODO: pass variable
         """TODO : init docstring"""
         assert (
             num_discrete_action_levels > 1
         ), "the number of action levels should be > 1."
         self.num_discrete_action_levels = num_discrete_action_levels
         self.negotiation_on = negotiation_on
+        self.group_on = False
         self.float_dtype = np.float32
         self.int_dtype = np.int32
 
