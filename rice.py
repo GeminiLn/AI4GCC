@@ -72,7 +72,7 @@ class Rice:
         ), "the number of action levels should be > 1."
         self.num_discrete_action_levels = num_discrete_action_levels
         self.negotiation_on = negotiation_on
-        self.group_on = False
+        self.group_on = True
         self.float_dtype = np.float32
         self.int_dtype = np.int32
 
@@ -793,13 +793,17 @@ class Rice:
                     for j in range(self.num_groups)
                 ]
 
-                ratio = self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id]
+                ratio = min(1, self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id] * 3)
+                #print(outgoing_accepted_mitigation_rates, incoming_accepted_mitigation_rates, ratio)
+                
 
                 self.global_state["minimum_mitigation_rate_all_regions"]["value"][
                     self.timestep, region_id
                 ] = max(
                     outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
-                ) * ratio
+                ) * ratio 
+                #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
+                
         
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
@@ -916,6 +920,7 @@ class Rice:
             ] = max(
                 outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
             )
+            #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
 
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
