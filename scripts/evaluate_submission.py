@@ -308,6 +308,7 @@ def val_metrics(logged_ts, framework, num_episodes=1, include_c_e_idx=True):
     desired_outputs = list(_METRICS_TO_LABEL_DICT.keys())
     episode_states = {}
     eval_metrics = {}
+
     try:
         for episode_id in range(num_episodes):
             episode_states[episode_id] = logged_ts
@@ -344,7 +345,9 @@ def val_metrics(logged_ts, framework, num_episodes=1, include_c_e_idx=True):
             eval_metrics[metrics_to_label_dict[0]] = perform_format(
                 mean_feature_value, metrics_to_label_dict[1]
             )
+            #print(eval_metrics)
         if include_c_e_idx:
+            print(os.path.exists(_INDEXES_FILENAME))
             if not os.path.exists(_INDEXES_FILENAME):
                 # Write min, max climate and economic index values to a file
                 # for use during evaluation.
@@ -354,6 +357,7 @@ def val_metrics(logged_ts, framework, num_episodes=1, include_c_e_idx=True):
                     file_ptr.write(json.dumps(indices_dict))
             with open(_INDEXES_FILENAME, "r", encoding="utf-8") as file_ptr:
                 index_dict = json.load(file_ptr)
+
             eval_metrics["climate_index"] = np.round(
                 (eval_metrics["Temperature Rise"] - index_dict["min_ci"])
                 / (index_dict["max_ci"] - index_dict["min_ci"]),
