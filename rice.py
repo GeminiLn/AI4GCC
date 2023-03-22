@@ -75,6 +75,7 @@ class Rice:
         self.group_on = True
         self.float_dtype = np.float32
         self.int_dtype = np.int32
+        self.group_indicator = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8]
 
         # Constants
         params, num_regions = set_rice_params(
@@ -186,9 +187,15 @@ class Rice:
             )
 
             self.group_evaluation_actions_nvec = [2] * 9 # (9 is the group number)
+# start saving 
+            self.group_savings_actions_nvec = (
+                [self.num_discrete_action_levels] * 2 * 9 # (9 is the group number)
+            )
+# end saving
 
             self.actions_nvec += (
-                self.group_ratio_actions_nvec + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec
+                self.group_ratio_actions_nvec + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec + \
+                self.group_savings_actions_nvec
             )
 
 
@@ -359,6 +366,24 @@ class Rice:
             value=np.zeros(self.num_regions),
             timestep=self.timestep,
         )
+ ## start saving rate       
+        self.set_global_state(
+            key="minimum_saving_rate_all_regions",
+            value=np.zeros(self.num_regions),
+            timestep=self.timestep,
+        )
+
+        self.set_global_state(
+            key="group_savings_promise",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+        self.set_global_state(
+            key="group_savings_request",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+## end saving rate
 
         self.set_global_state(
             key="group_disccused_ratio", 
@@ -501,18 +526,21 @@ class Rice:
             global_features += ["stage"]
 
             public_features += []
-
+# start saving 
             private_features += [
                 "minimum_mitigation_rate_all_regions",
                 "group_disccused_ratio",
+                "minimum_saving_rate_all_regions",
             ]
 
             grouping_features = [
                 "group_promised_mitigation_rate",
                 "group_requested_mitigation_rate",
                 "group_proposal_decisions",
+                "group_savings_promise",
+                "group_savings_request",
             ]
-
+# end saving
         shared_features = np.array([])
         for feature in global_features + public_features:
             shared_features = np.append(
@@ -617,6 +645,23 @@ class Rice:
                     ]
                     * self.num_discrete_action_levels
                 ))
+                ## start saving mask
+                minimum_saving_rate = int(round(
+                    self.global_state["minimum_saving_rate_all_regions"]["value"][
+                        self.timestep, region_id
+                    ]
+                    * self.num_discrete_action_levels
+                ))
+                saving_mask = np.array(
+                    [0 for _ in range(minimum_saving_rate)]
+                    + [
+                        1
+                        for _ in range(
+                            self.num_discrete_action_levels - minimum_saving_rate
+                        )
+                    ]
+                )      
+                ## end saving mask         
                 mitigation_mask = np.array(
                     [0 for _ in range(minimum_mitigation_rate)]
                     + [
@@ -629,6 +674,7 @@ class Rice:
                 mask_start = sum(self.savings_action_nvec)
                 mask_end = mask_start + sum(self.mitigation_rate_action_nvec)
                 mask[mask_start:mask_end] = mitigation_mask
+                mask[0:mask_start] = saving_mask
             mask_dict[region_id] = mask
 
         return mask_dict
@@ -710,6 +756,39 @@ class Rice:
         self.set_global_state(
             "group_requested_mitigation_rate", np.array(group_m2_all_groups), self.timestep
         )
+
+        # ## start of saving rates
+        action_offset_index += len(self.group_savings_actions_nvec)
+        num_group_savings_actions = len(self.group_savings_actions_nvec)
+        group_saving_promise_all_regions = [
+            actions[region_id][
+                action_offset_index : action_offset_index +  num_group_savings_actions:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+        group_savings_promise_all_groups = [
+            sum(group_saving_promise_all_regions[region:region+3])/3 for region in range(0, len(group_saving_promise_all_regions), 3)
+        ]
+        group_saving_request_all_regions = [
+            actions[region_id][
+                action_offset_index + 1 : action_offset_index + num_group_savings_actions + 1:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+        group_savings_request_all_groups = [
+            sum(group_saving_request_all_regions[region:region+3])/3 for region in range(0, len(group_saving_request_all_regions), 3)
+        ]
+        self.set_global_state(
+            "group_savings_promise", np.array(group_savings_promise_all_groups), self.timestep
+        )
+        self.set_global_state(
+            "group_savings_request", np.array(group_savings_request_all_groups), self.timestep
+        )
+        # ## end of saving rates
 
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
@@ -796,15 +875,43 @@ class Rice:
                 ratio = min(1, self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id] * 3)
                 #print(outgoing_accepted_mitigation_rates, incoming_accepted_mitigation_rates, ratio)
                 
-
                 self.global_state["minimum_mitigation_rate_all_regions"]["value"][
                     self.timestep, region_id
                 ] = max(
                     outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
                 ) * ratio 
                 #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
-                
+# start to modify
+        for group_id in range(self.num_groups):
         
+            for region_id in self.group_dict[group_id]:
+            
+                outgoing_accepted_saving_rates = [
+                    self.global_state["group_savings_promise"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                incoming_accepted_saving_rates = [
+                    self.global_state["group_savings_request"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                
+                self.global_state["minimum_saving_rate_all_regions"]["value"][
+                    self.timestep, region_id
+                ] = max(
+                    outgoing_accepted_saving_rates + incoming_accepted_saving_rates
+                ) * ratio 
+
+        # ## end of saving rates
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
         done = {"__all__": 0}
