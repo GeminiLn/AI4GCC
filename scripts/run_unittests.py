@@ -8,18 +8,21 @@
 """
 Unit tests for the rice simulation
 """
+import argparse
 import importlib.util as iu
 import logging
 import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 import numpy as np
-from evaluate_submission import get_results_dir
 
+# from evaluate_submission import get_results_dir
 from fixed_paths import PUBLIC_REPO_DIR
+
 sys.path.append(PUBLIC_REPO_DIR)
 
 _REGION_YAMLS = "region_yamls"
@@ -27,12 +30,14 @@ _REGION_YAMLS = "region_yamls"
 # Set logger level e.g., DEBUG, INFO, WARNING, ERROR.
 logging.getLogger().setLevel(logging.ERROR)
 
-_BASE_CODE_PATH = "https://raw.githubusercontent.com/mila-iqia/climate-cooperation-competition/main"
+_BASE_CODE_PATH = (
+    "https://raw.githubusercontent.com/mila-iqia/climate-cooperation-competition/main"
+)
 _BASE_RICE_PATH = os.path.join(_BASE_CODE_PATH, "rice.py")
 _BASE_RICE_HELPERS_PATH = os.path.join(_BASE_CODE_PATH, "rice_helpers.py")
 _BASE_RICE_BUILD_PATH = os.path.join(_BASE_CODE_PATH, "rice_build.cu")
-_BASE_CONSISTENCY_CHECKER_PATH = (
-    os.path.join(_BASE_CODE_PATH, "scripts/run_cpu_gpu_env_consistency_checks.py")
+_BASE_CONSISTENCY_CHECKER_PATH = os.path.join(
+    _BASE_CODE_PATH, "scripts/run_cpu_gpu_env_consistency_checks.py"
 )
 
 
@@ -52,9 +57,9 @@ def fetch_base_env(base_folder=".tmp/_base"):
     """
     Download the base version of the code from GitHub.
     """
-    if not base_folder.startswith('/'):
-      base_folder = os.path.join(PUBLIC_REPO_DIR, base_folder)
-      #print(f"Using tmp dir {base_folder}")
+    if not base_folder.startswith("/"):
+        base_folder = os.path.join(PUBLIC_REPO_DIR, base_folder)
+        # print(f"Using tmp dir {base_folder}")
     if os.path.exists(base_folder):
         shutil.rmtree(base_folder)
     os.makedirs(base_folder, exist_ok=False)
@@ -67,10 +72,11 @@ def fetch_base_env(base_folder=".tmp/_base"):
     os.chdir(base_folder)
     subprocess.call(["wget", "-O", "rice.py", _BASE_RICE_PATH])
     subprocess.call(["wget", "-O", "rice_helpers.py", _BASE_RICE_HELPERS_PATH])
-    shutil.copytree(
-        os.path.join(PUBLIC_REPO_DIR, "region_yamls"),
-        os.path.join(base_folder, "region_yamls"),
-    )
+    if "region_yamls" not in os.listdir(base_folder):
+        shutil.copytree(
+            os.path.join(PUBLIC_REPO_DIR, "region_yamls"),
+            os.path.join(base_folder, "region_yamls"),
+        )
 
     base_rice = import_class_from_path("Rice", os.path.join(base_folder, "rice.py"))()
 
@@ -264,14 +270,50 @@ class TestEnv(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    logging.info("Running env unit tests...")
-
-    # Set the results directory
-    results_dir, parser = get_results_dir()
-    parser.add_argument("unittest_args", nargs="*")
+def get_results_dir():
+    """
+    Obtain the 'results' directory from the system arguments.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--results_dir",
+        "-r",
+        type=str,
+        default=".",
+        help="the directory where all the submission files are saved. Can also be "
+        "the zipped file containing all the submission files.",
+    )
     args = parser.parse_args()
-    sys.argv[1:] = args.unittest_args
-    TestEnv.results_dir = results_dir
 
-    unittest.main()
+    if "results_dir" not in args:
+        raise ValueError(
+            "Please provide a results directory to evaluate with the argument -r"
+        )
+    if not os.path.exists(args.results_dir):
+        raise ValueError(
+            "The results directory is missing. Please make sure the correct path "
+            "is specified!"
+        )
+    try:
+        results_dir = args.results_dir
+
+        # Also handle a zipped file
+        if results_dir.endswith(".zip"):
+            unzipped_results_dir = os.path.join("/tmp", str(time.time()))
+            shutil.unpack_archive(results_dir, unzipped_results_dir)
+            results_dir = unzipped_results_dir
+        return results_dir, parser
+    except Exception as err:
+        raise ValueError("Cannot obtain the results directory") from err
+
+# if __name__ == "__main__":
+# Skip all of this
+# logging.info("Running env unit tests...")
+# # Set the results directory
+# results_dir, parser = get_results_dir()
+# parser.add_argument("unittest_args", nargs="*")
+# args = parser.parse_args()
+# sys.argv[1:] = args.unittest_args
+# TestEnv.results_dir = results_dir
+
+# unittest.main()

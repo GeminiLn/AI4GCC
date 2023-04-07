@@ -179,13 +179,10 @@ class Rice:
                                     4: [20, 13, 15], 5: [14, 16, 22], 6: [8, 9, 21], 7: [11, 17, 23],
                                     8: [24, 25, 0]}
             self.group_indicator = [8, 0, 0, 1, 1, 3, 1, 2, 6, 6, 3, 7, 3, 4, 5, 4, 5, 7, 2, 3, 4, 6, 5, 7, 8, 8, 0]
-<<<<<<< HEAD
 
             self.disagreement_indicator = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
             self.updating_pool = []
-=======
->>>>>>> 51353cae6a9d03af60a0d26d5c542cc57b92289e
             
             self.group_ratio_actions_nvec = [self.num_discrete_action_levels]
 
