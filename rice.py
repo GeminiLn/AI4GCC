@@ -72,7 +72,7 @@ class Rice:
         ), "the number of action levels should be > 1."
         self.num_discrete_action_levels = num_discrete_action_levels
         self.negotiation_on = negotiation_on
-        self.group_on = True
+        self.group_on = False
         self.float_dtype = np.float32
         self.int_dtype = np.int32
         #self.group_indicator = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8]
@@ -163,8 +163,12 @@ class Rice:
             # either accept or reject.
             self.evaluation_actions_nvec = [2] * self.num_regions
 
+            self.saving_actions_nvec = (
+                [self.num_discrete_action_levels] * 2 * self.num_regions
+            )
+
             self.actions_nvec += (
-                self.proposal_actions_nvec + self.evaluation_actions_nvec
+                self.proposal_actions_nvec + self.evaluation_actions_nvec + self.saving_actions_nvec
             )
 
         # Add group proposal and evaluation actions
@@ -431,6 +435,8 @@ class Rice:
             "promised_mitigation_rate",
             "requested_mitigation_rate",
             "proposal_decisions",
+            "promised_saving_rate",
+            "requested_saving_rate",
         ]:
             self.set_global_state(
                 key=key,
@@ -1134,6 +1140,37 @@ class Rice:
         self.set_global_state(
             "requested_mitigation_rate", np.array(m2_all_regions), self.timestep
         )
+        #bilater saving
+        action_offset_index = len(
+            self.savings_action_nvec
+            + self.mitigation_rate_action_nvec
+            + self.export_action_nvec
+            + self.import_actions_nvec
+            + self.tariff_actions_nvec
+            + self.proposal_actions_nvec
+            + self.evaluation_actions_nvec
+        )
+        num_saving_actions = len(self.saving_actions_nvec)
+        s1_all_regions = [
+            actions[region_id][
+                action_offset_index + 1 : action_offset_index + num_saving_actions : 2
+            ]
+            / self.num_discrete_action_levels
+            for region_id in range(self.num_regions)
+        ]
+        s2_all_regions = [
+            actions[region_id][
+                action_offset_index + 1 : action_offset_index + num_saving_actions : 2
+            ]
+            / self.num_discrete_action_levels
+            for region_id in range(self.num_regions)
+        ]
+        self.set_global_state(
+            "promised_saving_rate", np.array(s1_all_regions), self.timestep
+        )
+        self.set_global_state(
+            "requested_saving_rate", np.array(s2_all_regions), self.timestep
+        )  
 
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
@@ -1194,12 +1231,36 @@ class Rice:
                 ]
                 for j in range(self.num_regions)
             ]
+            outgoing_accepted_saving_rates = [
+                self.global_state["promised_saving_rate"]["value"][
+                    self.timestep, region_id, j
+                ]
+                * self.global_state["proposal_decisions"]["value"][
+                    self.timestep, j, region_id
+                ]
+                for j in range(self.num_regions)
+            ]
+            incoming_accepted_saving_rates = [
+                self.global_state["requested_saving_rate"]["value"][
+                    self.timestep, j, region_id
+                ]
+                * self.global_state["proposal_decisions"]["value"][
+                    self.timestep, region_id, j
+                ]
+                for j in range(self.num_regions)
+            ]
 
             self.global_state["minimum_mitigation_rate_all_regions"]["value"][
                 self.timestep, region_id
             ] = max(
                 outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
             )
+            self.global_state["minimum_saving_rate_all_regions"]["value"][
+                self.timestep, region_id
+            ] = max(
+                outgoing_accepted_saving_rates + incoming_accepted_saving_rates
+            )
+            
             #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
 
         obs = self.generate_observation()
