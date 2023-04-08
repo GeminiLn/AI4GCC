@@ -646,6 +646,7 @@ class Rice:
                     * self.num_discrete_action_levels
                 ))
                 ## start saving mask
+                '''
                 minimum_saving_rate = int(round(
                     self.global_state["minimum_saving_rate_all_regions"]["value"][
                         self.timestep, region_id
@@ -661,6 +662,7 @@ class Rice:
                         )
                     ]
                 )      
+                '''
                 ## end saving mask         
                 mitigation_mask = np.array(
                     [0 for _ in range(minimum_mitigation_rate)]
@@ -674,7 +676,7 @@ class Rice:
                 mask_start = sum(self.savings_action_nvec)
                 mask_end = mask_start + sum(self.mitigation_rate_action_nvec)
                 mask[mask_start:mask_end] = mitigation_mask
-                mask[0:mask_start] = saving_mask
+                #mask[0:mask_start] = saving_mask
             mask_dict[region_id] = mask
 
         return mask_dict
@@ -758,6 +760,7 @@ class Rice:
         )
 
         # ## start of saving rates
+        '''
         action_offset_index += len(self.group_savings_actions_nvec)
         num_group_savings_actions = len(self.group_savings_actions_nvec)
         group_saving_promise_all_regions = [
@@ -788,6 +791,7 @@ class Rice:
         self.set_global_state(
             "group_savings_request", np.array(group_savings_request_all_groups), self.timestep
         )
+        '''
         # ## end of saving rates
 
         obs = self.generate_observation()
@@ -883,7 +887,8 @@ class Rice:
                     outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
                 ) * ratio 
                 #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
-# start to modify
+        # start to modify
+        '''
         for group_id in range(self.num_groups):
         
             for region_id in self.group_dict[group_id]:
@@ -912,7 +917,7 @@ class Rice:
                 ] = max(
                     outgoing_accepted_saving_rates + incoming_accepted_saving_rates
                 ) * ratio 
-
+        '''
         # ## end of saving rates
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
