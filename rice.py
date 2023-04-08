@@ -872,7 +872,9 @@ class Rice:
                     for j in range(self.num_groups)
                 ]
 
-                ratio = min(1, self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id] * 3)
+                #ratio = min(1, self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id] * 3)
+                # Test: ratio=1
+                ratio = 1
                 #print(outgoing_accepted_mitigation_rates, incoming_accepted_mitigation_rates, ratio)
                 
                 self.global_state["minimum_mitigation_rate_all_regions"]["value"][
