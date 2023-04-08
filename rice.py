@@ -75,6 +75,7 @@ class Rice:
         self.group_on = True
         self.float_dtype = np.float32
         self.int_dtype = np.int32
+        #self.group_indicator = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8]
 
         # Constants
         params, num_regions = set_rice_params(
@@ -134,7 +135,7 @@ class Rice:
         # Each region sets import bids (max desired imports from other countries)
         self.import_actions_nvec = [self.num_discrete_action_levels] * self.num_regions
         # Each region sets import tariffs imposed on other countries
-        self.tariff_actions_nvec = [self.num_discrete_action_levels] * self.num_regions
+        self.tariff_actions_nvec = [self.num_discrete_action_levels] 
 
         self.actions_nvec = (
             self.savings_action_nvec
@@ -169,7 +170,7 @@ class Rice:
         # Add group proposal and evaluation actions
         if self.negotiation_on and self.group_on:
             self.stage = 0
-            self.num_negotiation_stages = 2  # proposal and evaluation steps
+            self.num_negotiation_stages = 3  # proposal and evaluation steps, group updating step
             self.episode_length += (
                 self.dice_constant["xN"] * self.num_negotiation_stages
             )
@@ -178,6 +179,10 @@ class Rice:
                                     4: [20, 13, 15], 5: [14, 16, 22], 6: [8, 9, 21], 7: [11, 17, 23],
                                     8: [24, 25, 0]}
             self.group_indicator = [8, 0, 0, 1, 1, 3, 1, 2, 6, 6, 3, 7, 3, 4, 5, 4, 5, 7, 2, 3, 4, 6, 5, 7, 8, 8, 0]
+
+            self.disagreement_indicator = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+            self.updating_pool = []
             
             self.group_ratio_actions_nvec = [self.num_discrete_action_levels]
 
@@ -186,9 +191,20 @@ class Rice:
             )
 
             self.group_evaluation_actions_nvec = [2] * 9 # (9 is the group number)
+# start saving 
+            self.group_savings_actions_nvec = (
+                [self.num_discrete_action_levels] * 2 * 9 # (9 is the group number)
+            )
+# end saving
+            '''
+            self.group_tariff_actions_nvec = (
+                [self.num_discrete_action_levels] * 2 * 9 # (9 is the group number)
+            )
+            '''
 
             self.actions_nvec += (
-                self.group_ratio_actions_nvec + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec
+                self.group_ratio_actions_nvec + self.group_proposal_actions_nvec + self.group_evaluation_actions_nvec + \
+                self.group_savings_actions_nvec #+ self.group_tariff_actions_nvec
             )
 
 
@@ -359,6 +375,44 @@ class Rice:
             value=np.zeros(self.num_regions),
             timestep=self.timestep,
         )
+ ## start saving rate       
+        self.set_global_state(
+            key="minimum_saving_rate_all_regions",
+            value=np.zeros(self.num_regions),
+            timestep=self.timestep,
+        )
+
+        self.set_global_state(
+            key="group_savings_promise",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+        self.set_global_state(
+            key="group_savings_request",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+## end saving rate
+        '''
+        # tariff
+        self.set_global_state(
+            key="minimum_tariff_all_regions",
+            value=np.zeros(self.num_regions),
+            timestep=self.timestep,
+        )
+
+        self.set_global_state(
+            key="group_tariff_promise",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+        self.set_global_state(
+            key="group_tariff_request",
+            value=np.zeros((self.num_groups, self.num_groups)),
+            timestep=self.timestep,
+        )
+        # end tariff
+        '''
 
         self.set_global_state(
             key="group_disccused_ratio", 
@@ -417,6 +471,8 @@ class Rice:
 
                 if self.stage == 2:
                     return self.group_evaluation_step(actions)
+                if self.stage ==3:
+                    return self.group_updating_step(actions)
             else:
                 if self.stage == 1:
                     return self.proposal_step(actions)
@@ -501,18 +557,24 @@ class Rice:
             global_features += ["stage"]
 
             public_features += []
-
+# start saving 
             private_features += [
                 "minimum_mitigation_rate_all_regions",
                 "group_disccused_ratio",
+                "minimum_saving_rate_all_regions",
+                #"minimum_tariff_all_regions"
             ]
 
             grouping_features = [
                 "group_promised_mitigation_rate",
                 "group_requested_mitigation_rate",
                 "group_proposal_decisions",
+                "group_savings_promise",
+                "group_savings_request",
+                #"group_tariff_promise",
+                #"group_tariff_request"
             ]
-
+# end saving
         shared_features = np.array([])
         for feature in global_features + public_features:
             shared_features = np.append(
@@ -617,6 +679,41 @@ class Rice:
                     ]
                     * self.num_discrete_action_levels
                 ))
+                ## start saving mask
+                minimum_saving_rate = int(round(
+                    self.global_state["minimum_saving_rate_all_regions"]["value"][
+                        self.timestep, region_id
+                    ]
+                    * self.num_discrete_action_levels
+                ))
+                saving_mask = np.array(
+                    [0 for _ in range(minimum_saving_rate)]
+                    + [
+                        1
+                        for _ in range(
+                            self.num_discrete_action_levels - minimum_saving_rate
+                        )
+                    ]
+                )      
+                ## end saving mask   
+                '''
+                minimum_tariff_rate = int(round(
+                    self.global_state["minimum_tariff_all_regions"]["value"][
+                        self.timestep, region_id
+                    ]
+                    * self.num_discrete_action_levels
+                ))
+                tariff_mask = np.array(
+                    [0 for _ in range(minimum_tariff_rate)]
+                    + [
+                        1
+                        for _ in range(
+                            self.num_discrete_action_levels - minimum_tariff_rate
+                        )
+                    ]
+                )     
+                '''
+                      
                 mitigation_mask = np.array(
                     [0 for _ in range(minimum_mitigation_rate)]
                     + [
@@ -626,9 +723,14 @@ class Rice:
                         )
                     ]
                 )
+                
                 mask_start = sum(self.savings_action_nvec)
+                #mask_mid = mask_start + sum(self.tariff_actions_nvec)
                 mask_end = mask_start + sum(self.mitigation_rate_action_nvec)
+
                 mask[mask_start:mask_end] = mitigation_mask
+                #mask[mask_start:mask_mid] = tariff_mask
+                mask[0:mask_start] = saving_mask
             mask_dict[region_id] = mask
 
         return mask_dict
@@ -711,6 +813,73 @@ class Rice:
             "group_requested_mitigation_rate", np.array(group_m2_all_groups), self.timestep
         )
 
+        # ## start of saving rates
+        action_offset_index += len(self.group_savings_actions_nvec)
+        num_group_savings_actions = len(self.group_savings_actions_nvec)
+        group_saving_promise_all_regions = [
+            actions[region_id][
+                action_offset_index : action_offset_index +  num_group_savings_actions:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+        group_savings_promise_all_groups = [
+            sum(group_saving_promise_all_regions[region:region+3])/3 for region in range(0, len(group_saving_promise_all_regions), 3)
+        ]
+        group_saving_request_all_regions = [
+            actions[region_id][
+                action_offset_index + 1 : action_offset_index + num_group_savings_actions + 1:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+        group_savings_request_all_groups = [
+            sum(group_saving_request_all_regions[region:region+3])/3 for region in range(0, len(group_saving_request_all_regions), 3)
+        ]
+        self.set_global_state(
+            "group_savings_promise", np.array(group_savings_promise_all_groups), self.timestep
+        )
+        self.set_global_state(
+            "group_savings_request", np.array(group_savings_request_all_groups), self.timestep
+        )
+        # ## end of saving rates
+        '''
+        # tariff
+        action_offset_index += len(self.group_tariff_actions_nvec)
+        num_group_tariff_actions = len(self.group_tariff_actions_nvec)
+        group_tariff_promise_all_regions = [
+            actions[region_id][
+                action_offset_index : action_offset_index +  num_group_tariff_actions:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+
+        group_tariff_promise_all_groups = [
+            sum(group_tariff_promise_all_regions[region:region+3])/3 for region in range(0, len(group_tariff_promise_all_regions), 3)
+        ]
+        group_tariff_request_all_regions = [
+            actions[region_id][
+                action_offset_index + 1 : action_offset_index + num_group_tariff_actions + 1:2
+            ]
+            / self.num_discrete_action_levels
+            for group_id in self.group_dict.keys()
+            for region_id in self.group_dict[group_id]
+        ]
+        group_tariff_request_all_groups = [
+            sum(group_tariff_request_all_regions[region:region+3])/3 for region in range(0, len(group_tariff_request_all_regions), 3)
+        ]
+        self.set_global_state(
+            "group_tariff_promise", np.array(group_tariff_promise_all_groups), self.timestep
+        )
+        self.set_global_state(
+            "group_tariff_request", np.array(group_tariff_request_all_groups), self.timestep
+        )
+        '''
+
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
         done = {"__all__": 0}
@@ -752,11 +921,22 @@ class Rice:
         for region in range(0, len(group_m1_all_regions), 3):
             lst = []
             vertical_sum = sum(group_m1_all_regions[region:region+3])
+            group_decisin = 0
             for value in vertical_sum:
                 if value > 1:
                     lst.append(1)
+                    # Disagreement record
+                    for shift in range(3):
+                        if group_m1_all_regions[region+shift][group_decisin] == 0:
+                            self.disagreement_indicator[region+shift] += 1
                 else: 
                     lst.append(0)
+                    # Disagreement record
+                    for shift in range(3):
+                        if group_m1_all_regions[region+shift][group_decisin] == 1:
+                            self.disagreement_indicator[region+shift] += 1
+                group_decisin += 1
+
             group_proposal_decisions.append(lst)
             
         group_proposal_decisions = np.array(group_proposal_decisions)
@@ -796,15 +976,115 @@ class Rice:
                 ratio = min(1, self.global_state["group_disccused_ratio"]["value"][self.timestep, region_id] * 3)
                 #print(outgoing_accepted_mitigation_rates, incoming_accepted_mitigation_rates, ratio)
                 
-
                 self.global_state["minimum_mitigation_rate_all_regions"]["value"][
                     self.timestep, region_id
                 ] = max(
                     outgoing_accepted_mitigation_rates + incoming_accepted_mitigation_rates
                 ) * ratio 
                 #print(self.global_state["minimum_mitigation_rate_all_regions"]["value"][self.timestep, region_id])
-                
+# start to modify
+        for group_id in range(self.num_groups):
         
+            for region_id in self.group_dict[group_id]:
+            
+                outgoing_accepted_saving_rates = [
+                    self.global_state["group_savings_promise"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                incoming_accepted_saving_rates = [
+                    self.global_state["group_savings_request"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                
+                self.global_state["minimum_saving_rate_all_regions"]["value"][
+                    self.timestep, region_id
+                ] = max(
+                    outgoing_accepted_saving_rates + incoming_accepted_saving_rates
+                ) * ratio 
+
+        # ## end of saving rates
+        '''
+        for group_id in range(self.num_groups):
+            for region_id in self.group_dict[group_id]:
+                outgoing_accepted_tariff = [
+                    self.global_state["group_tariff_promise"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                incoming_accepted_tariff = [
+                    self.global_state["group_tariff_request"]["value"][
+                        self.timestep, j, group_id
+                    ]
+                    * self.global_state["group_proposal_decisions"]["value"][
+                        self.timestep, group_id, j
+                    ]
+                    for j in range(self.num_groups)
+                ]
+                
+                self.global_state["minimum_saving_rate_all_regions"]["value"][
+                    self.timestep, region_id
+                ] = max(
+                    outgoing_accepted_tariff + incoming_accepted_tariff
+                ) * ratio 
+        '''
+
+        obs = self.generate_observation()
+        rew = {region_id: 0.0 for region_id in range(self.num_regions)}
+        done = {"__all__": 0}
+        info = {}
+        return obs, rew, done, info
+    
+    def group_updating_step(self, actions=None):
+        assert self.negotiation_on
+        assert self.group_on
+        assert self.stage == 3
+
+        for region_id in range(self.num_regions):
+            if self.disagreement_indicator[region_id] > 18:
+                self.updating_pool.append(region_id)
+        
+        for region_i in self.updating_pool:
+            capital_i = self.get_global_state(
+                "capital_all_regions", timestep=self.timestep - 1, region_id=region_i
+            )
+            labor_i = self.get_global_state(
+                "labor_all_regions", timestep=self.timestep - 1, region_id=region_i
+            )
+            for region_j in self.updating_pool:
+                if region_i != region_j:
+                    capital_j = self.get_global_state(
+                        "capital_all_regions", timestep=self.timestep - 1, region_id=region_j
+                    )
+                    labor_j = self.get_global_state(
+                        "labor_all_regions", timestep=self.timestep - 1, region_id=region_j
+                    )
+
+                    distance = (capital_i - capital_j) ** 2 + (labor_i - labor_j) ** 2
+                    if distance < 50:
+                        self.group_indicator[region_i], self.group_indicator[region_j] = self.group_indicator[region_j], self.group_indicator[region_i]
+                        for group in self.group_dict:
+                            if region_i in self.group_dict[group]:
+                                self.group_dict[group].append(region_j)
+                                self.group_dict[group].remove(region_i)
+                            if region_j in self.group_dict[group]:
+                                self.group_dict[group].append(region_i)
+                                self.group_dict[group].remove(region_j)
+
+
         obs = self.generate_observation()
         rew = {region_id: 0.0 for region_id in range(self.num_regions)}
         done = {"__all__": 0}
